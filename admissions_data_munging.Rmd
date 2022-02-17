@@ -1,0 +1,394 @@
+---
+title: "Data Munging"
+output: html_notebook
+---
+
+## Libraries
+```{r message = FALSE} 
+library(tidyverse)
+library(skimr)
+library(knitr)
+library(janitor)
+library(glmnet)
+library(caret)
+library(leaps)
+library(rpart)
+library(rattle) 
+
+```
+
+## Import Data
+```{r message = FALSE}
+admit = read_csv("SummerStudentAdmissions2.csv") %>%
+  clean_names()
+
+```
+
+## View Data
+```{r}
+skim(admit) 
+
+```
+
+# Start Initial clean of variables
+
+## Decision Variable
+```{r}
+# View values of decision
+#table(admit$decision)
+
+# remove any odd responses
+admit$decision[admit$decision != "Admit" & admit$decision != "Decline" & admit$decision != "Waitlist"] = NA
+
+# Make decision variable a factor
+admit$decision = as.factor(admit$decision)
+
+```
+
+## State Variable
+```{r}
+# View values of state
+#table(admit$state)
+
+# Some states need to be capitalized
+admit$state[admit$state == "virginia"] = "Virginia"
+admit$state[admit$state == "mississippi"] = "Mississippi"
+
+# Make state data a factor
+admit$state = as.factor(admit$state)
+```
+
+## GPA Variable
+```{r}
+summary(admit$gpa)
+
+admit %>%
+  ggplot(aes(x = gpa)) +
+  geom_histogram(fill = "darkblue", alpha = .65, bins = 20) +
+  labs(
+    title = "Admissions GPAs",
+    x = "GPA",
+    y = "Count"
+  )+
+  theme_minimal()
+# Will need to model GPA to fix value of 6.0 and NA.
+```
+## Work Experience Variable
+```{r}
+summary(admit$work_exp)
+
+admit %>%
+  ggplot(aes(x = work_exp)) +
+  geom_histogram(fill = "darkblue", alpha = .65, bins = 30) +
+  labs(
+    title = "Admissions Work Experience",
+    x = "Work Experience",
+    y = "Count"
+  )+
+  theme_minimal()
+# Clear outlier at 100 Will need to deal with that 
+```
+
+## Test Score Variable
+```{r}
+summary(admit$test_score)
+
+
+admit %>%
+  ggplot(aes(x = test_score)) +
+  geom_histogram(fill = "darkblue", alpha = .65, bins = 30) +
+  labs(
+    title = "Admissions Test Scores",
+    x = "Test Score",
+    y = "Count"
+  )+
+  theme_minimal()
+# Clear groups of test scores.
+# One NA value to deal with 
+# Possible visual - admittance by group of test scores. 
+```
+
+## Writing Score Variable
+```{r}
+summary(admit$writing_score)
+
+
+admit %>%
+  ggplot(aes(x = writing_score)) +
+  geom_histogram(fill = "darkblue", alpha = .65, bins = 30) +
+  labs(
+    title = "Admissions Writing Scores",
+    x = "Writing Score",
+    y = "Count"
+  )+
+  theme_minimal()
+# A couple of outlier scores. Could be input incorrectly, might model to adjust. 
+```
+
+## Gender Variable
+```{r}
+table(admit$gender)
+
+# Two Missing values and a -1 value
+# Assume 0 is male and 1 is female.
+# -1 is non-binary
+# NA means student chose not to reveal gender
+
+admit$gender[admit$gender == 1] = "Female"
+admit$gender[admit$gender == 0] = "Male"
+admit$gender[admit$gender == -1] = "Non-Binary"
+admit$gender[is.na(admit$gender)] = "Declined to Answer"
+admit$gender = as.factor(admit$gender)
+
+```
+
+## Volunteer Level Variable
+```{r}
+summary(admit$volunteer_level)
+
+
+admit %>%
+  ggplot(aes(x = volunteer_level)) +
+  geom_histogram(fill = "darkblue", alpha = .65, bins = 30) +
+  labs(
+    title = "Admissions Volunteer Levels",
+    x = "Volunteer Level",
+    y = "Count"
+  )+
+  theme_minimal()
+# Viewing histogram it is clear variable should be a factor.  
+admit$volunteer_level = as.factor(admit$volunteer_level)
+```
+
+## Model GPA to fill missing value
+```{r}
+admit_model = na.exclude(admit)
+
+set.seed(1212)
+k <- 10 
+
+folds <- sample(1:k, nrow(admit_model), replace = TRUE)
+
+# Place holder for errors
+cv.errors <- c() 
+
+# write a for loop that performs cross-validation
+for (i in 1:k) {
+  dat <- admit_model[folds != i, ]
+  cv_mod <- glm(gpa ~ ., data = admit_model)
+  pred <- as.numeric(predict(cv_mod, admit_model[folds == i, ], id = i, na.rm = T))
+  cv.errors[i] <- mean((admit_model$gpa[folds == i] - pred)^2, na.rm = T)
+}
+# View CV error
+mean(cv.errors)
+
+gpa_model = glm(gpa ~ ., data = admit_model)
+
+## Replace values
+admit$gpa[is.na(admit$gpa) | admit$gpa > 4] = round(predict(gpa_model, admit[is.na(admit$gpa) | admit$gpa > 4,]),2)
+
+
+```
+
+## Model work experience to fix outlier
+```{r}
+admit_model = na.exclude(admit) %>%
+  
+  # Better for modeling missing value
+  filter( work_exp < 100 & decision == "Waitlist") %>%
+  select(-decision,-state)
+
+set.seed(123)
+
+folds <- sample(1:k, nrow(admit_model), replace = TRUE)
+
+# Place holder for errors
+cv.errors <- c() 
+
+# write a for loop that performs cross-validation
+for (i in 1:k) {
+  dat <- admit_model[folds != i, ]
+  cv_mod <- glm(work_exp ~ . , data = admit_model)
+  pred <- as.numeric(predict(cv_mod, admit_model[folds == i, ], id = i, na.rm = T))
+  cv.errors[i] <- mean((admit_model$work_exp[folds == i] - pred)^2, na.rm = T)
+}
+# View CV error
+mean(cv.errors)
+
+work_exp_model = glm(work_exp ~ ., data = admit_model)
+
+## Replace values
+admit$work_exp[admit$work_exp > 20] = round(predict(work_exp_model, admit[admit$work_exp > 20,]),1)
+
+
+```
+
+## Model test scores to fix missing value
+```{r}
+admit_model = na.exclude(admit) %>%
+  
+  # Better for modeling missing value
+  filter(work_exp <= 2 & gpa >=  3.5) %>% 
+  select(-decision)
+
+
+set.seed(1212)
+k = 5
+folds <- sample(1:k, nrow(admit_model), replace = TRUE)
+
+# Place holder for errors
+cv.errors <- c() 
+
+# write a for loop that performs cross-validation
+for (i in 1:k) {
+  dat <- admit_model[folds != i, ]
+  cv_mod <- glm(test_score ~ . , data = admit_model)
+  pred <- as.numeric(predict(cv_mod, admit_model[folds == i, ], id = i, na.rm = T))
+  cv.errors[i] <- mean((admit_model$test_score[folds == i] - pred)^2, na.rm = T)
+}
+# View CV error
+mean(cv.errors)
+
+test_score_model = glm(test_score ~ ., data = admit_model)
+
+## Replace values
+admit$test_score[is.na(admit$test_score)] = round(predict(test_score_model, admit[is.na(admit$test_score),2:8]),0)
+```
+
+## Model writing scores to fix likely incorrect values 
+```{r}
+# Two people have extremely low writing scores which are not in line with the rest of the metrics.
+# Model to fix likely incorrect values
+admit_model = na.exclude(admit) %>%
+  filter(writing_score >= 20)
+
+
+set.seed(1212)
+k = 5
+folds <- sample(1:k, nrow(admit_model), replace = TRUE)
+
+# Place holder for errors
+cv.errors <- c() 
+
+# write a for loop that performs cross-validation
+for (i in 1:k) {
+  dat <- admit_model[folds != i, ]
+  cv_mod <- glm(writing_score ~ . , data = admit_model)
+  pred <- as.numeric(predict(cv_mod, admit_model[folds == i, ], id = i, na.rm = T))
+  cv.errors[i] <- mean((admit_model$writing_score[folds == i] - pred)^2, na.rm = T)
+}
+# View CV error
+mean(cv.errors)
+
+writing_score_model = glm(writing_score ~ ., data = admit_model)
+
+## Replace values
+admit$writing_score[admit$writing_score < 20] = round(predict(writing_score_model, admit[admit$writing_score < 20,]),0)
+
+
+```
+
+## Finally fix admission values based on a decision tree
+```{r}
+admit_model = na.exclude(admit)
+
+
+set.seed(1212)
+k = 5
+folds <- sample(1:k, nrow(admit_model), replace = TRUE)
+
+# Place holder for errors
+cv.errors <- c() 
+
+# write a for loop that performs cross-validation
+for (i in 1:k) {
+  dat <- admit_model[folds != i, ]
+  dec_mod = rpart(dat$decision ~ .,
+              data=dat,
+              method = 'class',
+              control=rpart.control(minsplit=2, 
+                                    minbucket=1))
+  pred <- predict(dec_mod, admit_model[folds == i, ],type = "class")
+  cv.errors[i] <- sum(admit_model$decision[folds == i] == pred)/length(pred)
+}
+# View CV error
+mean(cv.errors)
+#fancyRpartPlot(dec_mod)
+
+
+decision_model = rpart(decision ~ .,
+              data=admit_model,
+              method = 'class',
+              control=rpart.control(minsplit=2, 
+                                    minbucket=1))
+
+## Replace values
+admit$decision[is.na(admit$decision)] = predict(decision_model, admit[is.na(admit$decision),], type = "class")
+
+
+```
+
+# View histograms with cleaned data
+
+## GPA
+```{r}
+admit %>%
+  ggplot(aes(x = gpa)) +
+  geom_histogram(fill = "darkblue", alpha = .65, bins = 20) +
+  labs(
+    title = "Admissions GPAs",
+    x = "GPA",
+    y = "Count"
+  )+
+  theme_minimal()
+
+```
+
+## Work Experience 
+```{r}
+
+admit %>%
+  ggplot(aes(x = work_exp)) +
+  geom_histogram(fill = "darkblue", alpha = .65, bins = 30) +
+  labs(
+    title = "Admissions Work Experience",
+    x = "Work Experience",
+    y = "Count"
+  )+
+  theme_minimal()
+ 
+```
+
+## Test Score Variable
+```{r}
+admit %>%
+  ggplot(aes(x = test_score)) +
+  geom_histogram(fill = "darkblue", alpha = .65, bins = 30) +
+  labs(
+    title = "Admissions Test Scores",
+    x = "Test Score",
+    y = "Count"
+  )+
+  theme_minimal()
+
+```
+
+## Writing Score Variable
+```{r}
+admit %>%
+  ggplot(aes(x = writing_score)) +
+  geom_histogram(fill = "darkblue", alpha = .65, bins = 30) +
+  labs(
+    title = "Admissions Writing Scores",
+    x = "Writing Score",
+    y = "Count"
+  )+
+  theme_minimal()
+```
+
+# Write to .csv file
+```{r}
+write_csv(admit,"cleaned_admissions_data.csv")
+
+
+```
