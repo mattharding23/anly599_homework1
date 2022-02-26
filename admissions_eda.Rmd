@@ -1,0 +1,277 @@
+---
+title: "Admissions"
+output: 
+  flexdashboard::flex_dashboard:
+    theme:
+      version: 4
+      bootswatch: "sandstone"
+    
+runtime: shiny
+---
+
+
+```{r}
+# Import Libraries
+library(bslib)
+library(flexdashboard)
+library(tidyverse)
+library(shiny)
+
+# Read in data
+admit = read.csv("cleaned_admissions_data.csv")
+```
+
+
+Basic Stats
+================================================
+
+Column {.sidebar}
+--------------------------------------------------
+
+Different Admissions Metrics
+
+```{r}
+
+# Create buttons to select admissions metric
+radioButtons(
+  "metric", label = "Admission Metric",
+  choices = c("GPA" = "gpa",
+              "Test Score" = "test_score",
+              "Writing Score" = "writing_score",
+              "Work Experience" = "work_exp",
+              "Volunteer Level" = "volunteer_level"), 
+  selected = "gpa"
+)
+
+```
+
+Column
+--------------------------------------------------
+
+
+```{r}
+# Create label names
+admit_options = c("GPA" = "gpa",
+              "Test Score" = "test_score",
+              "Writing Score" = "writing_score",
+              "Work Experience" = "work_exp",
+              "Volunteer Level" = "volunteer_level")
+
+# Render plot in shiny
+renderPlot({
+  ggplot(data = admit, aes_string(x = input$metric)) +
+    
+    # Create histogram
+    geom_histogram(fill = "darkblue", alpha = .7, bins = 10) +
+    
+    # Facet by state
+    facet_wrap(~ state) +
+    
+    # Add axis labels and titles
+    labs(title = paste(names(admit_options[which(admit_options == input$metric)]),
+                       "From Each State"),
+         y = "Number of Students",
+         x = names(admit_options[which(admit_options == input$metric)])) +
+    
+  # Change theme
+  theme(
+    # Enlarge & center title
+    plot.title = element_text(
+      size = 25, 
+      margin = margin(10, 0, 10, 0), hjust = .5
+    ),
+    
+    # Edit axis text sizes
+    axis.title = element_text(size = 16),
+    axis.text = element_text(size = 14),
+    
+    # Change facet labels
+    strip.text.x = element_text(size = 14, face = "bold"),
+    strip.background = element_blank(),
+    
+    # Clean plot background
+    panel.grid.minor = element_line(color = "#D3D3D3", size = 0.2),
+    panel.grid.major = element_blank(), # Remove major grid
+    panel.background = element_blank())
+  },
+# Change dimensions of figure
+height = 700, width = 1350)
+```
+
+
+
+By Admission
+================================================
+
+Column
+--------------------------------------------------
+
+
+```{r}
+# Render plot in shiny
+renderPlot({
+  ggplot(data = admit, aes(x = state,fill = decision)) +
+    
+    # Create bar chart of students by state
+    geom_bar( alpha = .7, bins = 10) +
+    
+    # Facet chart by admission decision
+    facet_wrap(~ decision) +
+    
+    # Coloring of bars
+    scale_fill_brewer(type = "qual",
+                      palette = "Set2", 
+                      name = "Admission Decision") +
+    
+    # labelling
+    labs(title = "Admission Decision by  State",
+         y = "Number of Students",
+         x = "State" )+
+      
+    # Change theme
+  theme(
+    # Enlarge & center title
+    plot.title = element_text(
+      size = 25, 
+      margin = margin(10, 0, 10, 0), hjust = .5
+    ),
+    
+    # Change axis text
+    axis.title = element_text(size = 16),
+    axis.text = element_text(size = 14),
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+    
+    # Cange facet titles
+    strip.text.x = element_text(size = 14, face = "bold"),
+    strip.background = element_blank(),
+    
+    # Change legend text sizes
+    legend.title = element_text(size = 15),
+    legend.text = element_text(size = 13),
+    
+    # Remove backgrounds from legend
+    legend.box.background = element_blank(),
+    legend.background = element_blank(),
+    legend.key = element_blank(),
+    
+    # Fix background
+    panel.grid.minor = element_line(color = "#D3D3D3", size = 0.2),
+    panel.grid.major = element_blank(), # Remove major grid
+    panel.background = element_blank())
+}, 
+
+# Change figure size
+height = 700, width = 1590)
+```
+
+
+Metric Comparisons
+================================================
+
+Column {.sidebar}
+--------------------------------------------------
+View how admissions metrics correlate with one another
+
+
+```{r}
+
+# Input one
+selectInput(
+  "x_var", label = "X-axis",
+  choices = c("GPA" = "gpa",
+              "Test Score" = "test_score",
+              "Writing Score" = "writing_score"), 
+  selected = "gpa"
+)
+
+# Input 2
+selectInput(
+  "y_var", label = "Y-axis",
+  choices = c("GPA" = "gpa",
+              "Test Score" = "test_score",
+              "Writing Score" = "writing_score"), 
+  selected = "test_score"
+)
+
+```
+
+Column
+--------------------------------------------------
+
+
+```{r}
+# For naming 
+admit_options = c("GPA" = "gpa",
+              "Test Score" = "test_score",
+              "Writing Score" = "writing_score")
+
+# Make state coloring easier to read
+admit$state_col = "Other"
+admit$state_col[admit$state == "Florida"] = "Florida"
+admit$state_col[admit$state == "California"] = "California"
+admit$state_col[admit$state == "Colorado"] = "Colorado"
+admit$state_col[admit$state == "Utah"] = "Utah"
+
+# Render plot in shiny
+renderPlot({
+  ggplot() +
+    
+    # Create scatter plot, use colors for states and shapes for admissions dec.
+    geom_point(data = admit, 
+         aes_string(x = input$x_var, 
+                    y = input$y_var, 
+                    color = "state_col", 
+                    shape = "decision"),
+         size = 6) +
+    
+    # Add linear regression line (Not sure we need this)
+    geom_smooth(data = admit, 
+                aes_string(x = input$x_var,y = input$y_var),
+                method='lm',
+                color = "black") +
+    
+    # Add labels
+    labs(title = paste(names(admit_options[which(admit_options == input$x_var)]),
+                       "From Each State",
+                       names(admit_options[which(admit_options == input$y_var)])),
+         y = names(admit_options[which(admit_options == input$y_var)]),
+         x = names(admit_options[which(admit_options == input$x_var)])) +
+    
+    # Coloring for states
+    scale_color_brewer(type = "qual",palette = "Dark2", name = "State") +
+    
+    # Name legend for admission decision
+    scale_shape(name = "Admission Decision") +
+
+    
+    # Change theme
+  theme(
+    # Enlarge & center title
+    plot.title = element_text(
+      size = 25, 
+      margin = margin(10, 0, 10, 0), hjust = .5
+    ),
+    
+    # Change axis text formatting
+    axis.title = element_text(size = 16),
+    axis.text = element_text(size = 14),
+    
+    # Change legend text sizes
+    legend.title = element_text(size = 15),
+    legend.text = element_text(size = 13),
+    
+    # Remove backgrounds from legend
+    legend.box.background = element_blank(),
+    legend.background = element_blank(),
+    legend.key = element_blank(),
+    
+    # Clean up background
+    panel.grid.minor = element_line(color = "#D3D3D3", size = 0.2),
+    panel.grid.major = element_blank(), # Remove major grid
+    panel.background = element_blank())
+}, 
+
+# Change figure size
+height = 700, width = 1350)
+```
+
