@@ -82,7 +82,7 @@ renderPlot({
     
     # Edit axis text sizes
     axis.title = element_text(size = 16),
-    axis.text = element_text(size = 14),
+    axis.text = element_text(size = 16),
     
     # Change facet labels
     strip.text.x = element_text(size = 14, face = "bold"),
@@ -156,7 +156,7 @@ renderPlot({
     
     # Change axis text
     axis.title = element_text(size = 16),
-    axis.text = element_text(size = 14),
+    axis.text = element_text(size = 16),
     axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
     
     # Cange facet titles
@@ -183,7 +183,7 @@ height = 700, width = 1590)
 ```
 
 
-Basic Stats
+Stats by State
 ================================================
 
 Column {.sidebar}
@@ -226,7 +226,7 @@ renderPlot({
     geom_histogram(fill = "darkblue", alpha = .7, bins = 10) +
     
     # Facet by state
-    facet_wrap(~ state) +
+    facet_wrap(~ state, ncol = 3) +
     
     # Add axis labels and titles
     labs(title = paste(names(admit_options[which(admit_options == input$metric)]),
@@ -244,7 +244,7 @@ renderPlot({
     
     # Edit axis text sizes
     axis.title = element_text(size = 16),
-    axis.text = element_text(size = 14),
+    axis.text = element_text(size = 16),
     
     # Change facet labels
     strip.text.x = element_text(size = 14, face = "bold"),
@@ -253,10 +253,12 @@ renderPlot({
     # Clean plot background
     panel.grid.minor = element_line(color = "#D3D3D3", size = 0.2),
     panel.grid.major = element_blank(), # Remove major grid
-    panel.background = element_blank())
+    panel.background = element_blank(),
+    
+    panel.border = element_rect(colour = "black", fill=NA, size=2))
   },
 # Change dimensions of figure
-height = 700, width = 1350)
+height = 700, width = 1000)
 ```
 
 
@@ -304,11 +306,11 @@ admit_options = c("GPA" = "gpa",
               "Writing Score" = "writing_score")
 
 # Make state coloring easier to read
-admit$state_col = "Other"
-admit$state_col[admit$state == "Florida"] = "Florida"
-admit$state_col[admit$state == "California"] = "California"
-admit$state_col[admit$state == "Colorado"] = "Colorado"
-admit$state_col[admit$state == "Utah"] = "Utah"
+admit$state_col = "States with No Admitted Students"
+admit$state_col[admit$state == "Florida"] = "States with Admitted Students"
+admit$state_col[admit$state == "California"] = "States with Admitted Students"
+admit$state_col[admit$state == "Colorado"] = "States with Admitted Students"
+admit$state_col[admit$state == "Utah"] = "States with Admitted Students"
 
 # Render plot in shiny
 renderPlot({
@@ -320,13 +322,8 @@ renderPlot({
                     y = input$y_var, 
                     color = "state_col", 
                     shape = "decision"),
-         size = 6) +
-    
-    # Add linear regression line (Not sure we need this)
-    geom_smooth(data = admit, 
-                aes_string(x = input$x_var,y = input$y_var),
-                method='lm',
-                color = "black") +
+         size = 5,
+         alpha = .7) +
     
     # Add labels
     labs(title = paste(names(admit_options[which(admit_options == input$x_var)]),
@@ -336,7 +333,7 @@ renderPlot({
          x = names(admit_options[which(admit_options == input$x_var)])) +
     
     # Coloring for states
-    scale_color_brewer(type = "qual",palette = "Dark2", name = "State") +
+    scale_color_manual(values = c("grey","red"), name = "State Admission Status") +
     
     # Name legend for admission decision
     scale_shape(name = "Admission Decision") +
@@ -352,7 +349,7 @@ renderPlot({
     
     # Change axis text formatting
     axis.title = element_text(size = 16),
-    axis.text = element_text(size = 14),
+    axis.text = element_text(size = 16),
     
     # Change legend text sizes
     legend.title = element_text(size = 15),
@@ -373,3 +370,196 @@ renderPlot({
 height = 700, width = 1350)
 ```
 
+
+
+Work & Volunteer
+================================================
+
+Column
+--------------------------------------------------
+
+
+```{r}
+# Render plot in shiny
+renderPlot({
+  ggplot(data = admit, aes(x = work_exp, 
+                           y = volunteer_level, 
+                           color = state_col, 
+                           shape = decision)) +
+    
+    # Create bar chart of students by state
+    geom_point( size = 5, alpha = .7) +
+    
+    labs(title = "Volunteering and Work Experience Levels",
+         y = "Volunteer Level",
+         x = "Work Experience") +
+    
+    # Coloring for states
+    scale_color_manual(values = c("grey","red"), name = "State Admission Status") +
+    
+    # Name legend for admission decision
+    scale_shape(name = "Admission Decision") +
+
+    
+    # Change theme
+  theme(
+    # Enlarge & center title
+    plot.title = element_text(
+      size = 25, 
+      margin = margin(10, 0, 10, 0), hjust = .5
+    ),
+    
+    # Change axis text formatting
+    axis.title = element_text(size = 16),
+    axis.text = element_text(size = 16),
+    
+    # Change legend text sizes
+    legend.title = element_text(size = 15),
+    legend.text = element_text(size = 13),
+    
+    # Remove backgrounds from legend
+    legend.box.background = element_blank(),
+    legend.background = element_blank(),
+    legend.key = element_blank(),
+    
+    # Clean up background
+    panel.grid.minor = element_line(color = "#D3D3D3", size = 0.2),
+    panel.grid.major = element_blank(), # Remove major grid
+    panel.background = element_blank())
+}, 
+
+# Change figure size
+height = 700, width = 1350)
+```
+
+New Admissions Metric
+================================================
+
+```{r}
+admit_normalized = admit
+admit_normalized$gpa = scale(admit_normalized$gpa)
+admit_normalized$work_exp = scale(admit_normalized$work_exp)
+admit_normalized$test_score = scale(admit_normalized$test_score)
+admit_normalized$writing_score = scale(admit_normalized$writing_score)
+admit_normalized$volunteer_level = scale(admit_normalized$volunteer_level)
+
+admit_normalized = admit_normalized %>%
+  summarise(decision = decision,
+            state = state,
+            state_col = state_col,
+            total_score = gpa + work_exp + test_score + writing_score + volunteer_level)
+
+# Render plot in shiny
+renderPlot({
+  ggplot(data = admit_normalized, aes(x = decision, 
+                           y = total_score, 
+                           color = state_col
+                           )) +
+    
+    # Create bar chart of students by state
+    geom_point( size = 5, alpha = .7) +
+    
+    labs(title = "Normalized Total Student Score",
+         y = "Score",
+         x = "Admission Status") +
+    
+    # Coloring for states
+    scale_color_manual(values = c("grey","red"), name = "State Admission Status") +
+
+    
+    # Change theme
+  theme(
+    # Enlarge & center title
+    plot.title = element_text(
+      size = 25, 
+      margin = margin(10, 0, 10, 0), hjust = .5
+    ),
+    
+    # Change axis text formatting
+    axis.title = element_text(size = 16),
+    axis.text = element_text(size = 16),
+    
+    # Change legend text sizes
+    legend.title = element_text(size = 15),
+    legend.text = element_text(size = 13),
+    
+    # Remove backgrounds from legend
+    legend.box.background = element_blank(),
+    legend.background = element_blank(),
+    legend.key = element_blank(),
+    
+    # Clean up background
+    panel.grid.minor = element_line(color = "#D3D3D3", size = 0.2),
+    panel.grid.major = element_blank(), # Remove major grid
+    panel.background = element_blank())
+}, 
+
+# Change figure size
+height = 700, width = 1350)
+
+
+
+
+```
+
+
+
+New Eligible Students
+================================================
+
+Column
+--------------------------------------------------
+
+
+```{r}
+# Render plot in shiny
+renderPlot({
+  ggplot(data = admit_normalized[admit_normalized$total_score >= -1,], 
+         aes(x = state, fill = state_col)) +
+    
+    # Create bar chart of students by state
+    geom_bar( alpha = .7) +
+    
+    # Coloring of bars
+    scale_fill_manual(values = c("grey","red"), name = "State Admission Status") +
+    
+    # labeling
+    labs(title = "Eligible Students for Admission with New Metric",
+         y = "Number of Students",
+         x = "State" )+
+      
+    # Change theme
+  theme(
+    # Enlarge & center title
+    plot.title = element_text(
+      size = 25, 
+      margin = margin(10, 0, 10, 0), hjust = .5
+    ),
+    
+    # Change axis text
+    axis.title = element_text(size = 16),
+    axis.text = element_text(size = 16),
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+    
+    # Cange facet titles
+    strip.text.x = element_text(size = 14, face = "bold"),
+    strip.background = element_blank(),
+    
+    # Change legend text sizes
+    legend.title = element_text(size = 15),
+    legend.text = element_text(size = 13),
+    
+    # Remove backgrounds from legend
+    legend.box.background = element_blank(),
+    legend.background = element_blank(),
+    legend.key = element_blank(),
+    
+    # Fix background
+    panel.grid.minor = element_line(color = "#D3D3D3", size = 0.2),
+    panel.grid.major = element_blank(), # Remove major grid
+    panel.background = element_blank())
+}, 
+
+# Change figure size
+height = 700, width = 1400)
+```
