@@ -16,9 +16,170 @@ library(bslib)
 library(flexdashboard)
 library(tidyverse)
 library(shiny)
+library(gt)
 
 # Read in data
 admit = read.csv("cleaned_admissions_data.csv")
+```
+
+Overall Statistics
+================================================
+
+Column {.sidebar}
+--------------------------------------------------
+
+
+```{r}
+
+# Create buttons to select admissions metric
+radioButtons(
+  "metric", label = "Admission Metric",
+  choices = c("GPA" = "gpa",
+              "Test Score" = "test_score",
+              "Writing Score" = "writing_score",
+              "Work Experience" = "work_exp",
+              "Volunteer Level" = "volunteer_level"), 
+  selected = "gpa"
+)
+
+```
+
+Column
+--------------------------------------------------
+
+
+```{r}
+# Create label names
+admit_options = c("GPA" = "gpa",
+              "Test Score" = "test_score",
+              "Writing Score" = "writing_score",
+              "Work Experience" = "work_exp",
+              "Volunteer Level" = "volunteer_level")
+
+# Render plot in shiny
+renderPlot({
+  ggplot(data = admit[admit$decision == "Admit",], aes_string(x = input$metric)) +
+    
+    # Create histogram
+    geom_boxplot(color = "darkblue", alpha = .7, bins = 10) +
+    geom_text(aes_string(x = ".5", y = mean(input$metric), label = mean(input$metric) )) +
+    coord_flip() +
+    
+    # Add axis labels and titles
+    labs(title = paste("Summary of Admitted Students", names(admit_options[which(admit_options == input$metric)])),
+         y = names(admit_options[which(admit_options == input$metric)])) +
+    
+    scale_x_continuous(limits = c(min(admit[,input$metric][admit$decision == "Admit"]), 
+                                  max(admit[,input$metric][admit$decision == "Admit"]))) +
+    
+  # Change theme
+  theme(
+    # Enlarge & center title
+    plot.title = element_text(
+      size = 25, 
+      margin = margin(10, 0, 10, 0), hjust = .5
+    ),
+    
+    # Edit axis text sizes
+    axis.title = element_text(size = 16),
+    axis.text = element_text(size = 14),
+    
+    # Change facet labels
+    strip.text.x = element_text(size = 14, face = "bold"),
+    strip.background = element_blank(),
+    
+    # Clean plot background
+    panel.grid.minor = element_line(color = "#D3D3D3", size = 0.2),
+    panel.grid.major = element_blank(), # Remove major grid
+    panel.background = element_blank())
+  },
+# Change dimensions of figure
+height = 700, width = 900)
+```
+
+Column
+--------------------------------------------------
+```{r}
+
+
+renderTable({
+  gt(tibble("Max" = round(max(admit[,input$metric][admit$decision == "Admit"]),2),
+            "Mean" = round(mean(admit[,input$metric][admit$decision == "Admit"]),2),
+            "Min" = round(min(admit[,input$metric][admit$decision == "Admit"]),2))%>%
+       pivot_longer(cols = c(Max, Mean, Min),
+                    names_to = "Statistic", 
+                    values_to = "Value")) %>%
+    tab_header(
+    title = paste(names(admit_options[which(admit_options == input$metric)]),
+                  "Statistics"))
+})
+
+
+```
+
+
+By Admission
+================================================
+
+Column
+--------------------------------------------------
+
+
+```{r}
+# Render plot in shiny
+renderPlot({
+  ggplot(data = admit, aes(x = state,fill = decision)) +
+    
+    # Create bar chart of students by state
+    geom_bar( alpha = .7, bins = 10) +
+    
+    # Facet chart by admission decision
+    facet_wrap(~ decision) +
+    
+    # Coloring of bars
+    scale_fill_brewer(type = "qual",
+                      palette = "Set2", 
+                      name = "Admission Decision") +
+    
+    # labelling
+    labs(title = "Admission Decision by  State",
+         y = "Number of Students",
+         x = "State" )+
+      
+    # Change theme
+  theme(
+    # Enlarge & center title
+    plot.title = element_text(
+      size = 25, 
+      margin = margin(10, 0, 10, 0), hjust = .5
+    ),
+    
+    # Change axis text
+    axis.title = element_text(size = 16),
+    axis.text = element_text(size = 14),
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+    
+    # Cange facet titles
+    strip.text.x = element_text(size = 14, face = "bold"),
+    strip.background = element_blank(),
+    
+    # Change legend text sizes
+    legend.title = element_text(size = 15),
+    legend.text = element_text(size = 13),
+    
+    # Remove backgrounds from legend
+    legend.box.background = element_blank(),
+    legend.background = element_blank(),
+    legend.key = element_blank(),
+    
+    # Fix background
+    panel.grid.minor = element_line(color = "#D3D3D3", size = 0.2),
+    panel.grid.major = element_blank(), # Remove major grid
+    panel.background = element_blank())
+}, 
+
+# Change figure size
+height = 700, width = 1590)
 ```
 
 
@@ -100,69 +261,6 @@ height = 700, width = 1350)
 
 
 
-By Admission
-================================================
-
-Column
---------------------------------------------------
-
-
-```{r}
-# Render plot in shiny
-renderPlot({
-  ggplot(data = admit, aes(x = state,fill = decision)) +
-    
-    # Create bar chart of students by state
-    geom_bar( alpha = .7, bins = 10) +
-    
-    # Facet chart by admission decision
-    facet_wrap(~ decision) +
-    
-    # Coloring of bars
-    scale_fill_brewer(type = "qual",
-                      palette = "Set2", 
-                      name = "Admission Decision") +
-    
-    # labelling
-    labs(title = "Admission Decision by  State",
-         y = "Number of Students",
-         x = "State" )+
-      
-    # Change theme
-  theme(
-    # Enlarge & center title
-    plot.title = element_text(
-      size = 25, 
-      margin = margin(10, 0, 10, 0), hjust = .5
-    ),
-    
-    # Change axis text
-    axis.title = element_text(size = 16),
-    axis.text = element_text(size = 14),
-    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
-    
-    # Cange facet titles
-    strip.text.x = element_text(size = 14, face = "bold"),
-    strip.background = element_blank(),
-    
-    # Change legend text sizes
-    legend.title = element_text(size = 15),
-    legend.text = element_text(size = 13),
-    
-    # Remove backgrounds from legend
-    legend.box.background = element_blank(),
-    legend.background = element_blank(),
-    legend.key = element_blank(),
-    
-    # Fix background
-    panel.grid.minor = element_line(color = "#D3D3D3", size = 0.2),
-    panel.grid.major = element_blank(), # Remove major grid
-    panel.background = element_blank())
-}, 
-
-# Change figure size
-height = 700, width = 1590)
-```
 
 
 Metric Comparisons
