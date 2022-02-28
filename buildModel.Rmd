@@ -1,0 +1,147 @@
+---
+title: "eda_try"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+# Import Libraries
+library(ggthemes)
+library(tidyverse)
+library(glmnet)
+library(randomForest)
+library(ROCR)
+
+
+```
+
+
+```{r cars}
+# Read in data
+admit = read.csv("cleaned_admissions_data.csv")
+```
+
+
+```{r}
+head(admit)
+```
+
+# Regression
+
+## Linear Regression Fail
+```{r}
+# By calculating the mean of the characteristics of writing scores and GPA for each state, the regression of admitt_rate for each state is not feasible
+regression_data <- admit %>% group_by(state,) %>% mutate(admit_rate = length(decision[which(decision == 'Admit')])/length(decision), mean_gpa = mean(gpa), mean_work_exp = mean(work_exp), mean_test_score = mean(test_score), mean_writing_score = mean(writing_score))  %>% data.frame() %>% select(c('admit_rate','mean_gpa','mean_work_exp','mean_test_score','mean_writing_score')) %>% distinct()
+
+
+model <- lm(admit_rate~.,data = regression_data)
+
+# lasso is btter, the adjust_R^2 reach 0.55, but is not enough
+
+# target_col <- c('admit_rate')
+# X = as.matrix(select(regression_data,-one_of(target_col)))
+# Y = as.matrix(select(regression_data,one_of(target_col)))
+# model <- glmnet(x = X, y = Y, family="mgaussian", nlambda=100, alpha=1)
+
+```
+```{r}
+# almost all the coefficient of independent variable can't pass the t-test
+summary(model)
+```
+
+
+# Classification(if admit, label is 1, otherwise 0)
+```{r}
+# try to build up logistic regression
+admit_function <- function(input) {
+    if(input == 'Admit') {
+      return(1)
+    } else {
+      return(0)
+    }
+}
+admit <- mutate(admit,admit_or_not = sapply(admit$decision,admit_function))
+
+admit$state <- factor(admit$state)
+admit$admit_or_not <- factor(admit$admit_or_not)
+admit$gender <- factor(admit$gender)
+admit$volunteer_level <- factor(admit$volunteer_level)
+```
+
+```{r}
+str(admit)
+```
+
+## Logistic Regression Fail
+
+```{r}
+pre_model <- preProcess(admit, method = c('center','scale'))
+admit_standard <- predict(pre_model,admit)
+
+mylogit <- glm(admit_or_not ~., data = admit_standard, family = binomial(link='logit'))
+```
+
+```{r}
+# all the coefficient of independent variable can't pass the t-test
+summary(mylogit)
+```
+
+## Use Random Forest to predict the possibility of admit(this part is success)
+
+```{r}
+rf_model <- randomForest(admit_or_not ~.-decision,data = admit)
+```
+```{r}
+importance    <- importance(rf_model)
+varImportance <- data.frame(Variables = row.names(importance), 
+                            Importance = round(importance[ ,'MeanDecreaseGini'],2))
+
+rankImportance <- varImportance %>%
+  mutate(Rank = paste0('#',dense_rank(desc(Importance))))
+
+ggplot(rankImportance, aes(x = reorder(Variables, Importance), 
+    y = Importance, fill = Importance)) +
+  geom_bar(stat='identity') + 
+  labs(x = 'Variables') +
+  coord_flip() + 
+  theme_few()
+```
+```{r}
+# feature importance dataframe
+varImportance[
+  with(varImportance, order(Importance,decreasing = TRUE)),
+]
+```
+```{r}
+# re-divide training and testing dataset
+set.seed(18)
+Train_index <- createDataPartition(admit$admit_or_not, p = 0.7, list = FALSE)
+train_set <- admit[Train_index,]
+test_set <- admit[-Train_index,]
+train_model <- randomForest(admit_or_not ~.-decision,data = train_set)
+
+predition_rf = predict(train_model, test_set)
+```
+```{r}
+error <- mean(test_set$admit_or_not != predition_rf) # Misclassification error
+paste('Accuracy',round(1-error,4))
+```
+
+```{r}
+#ROC Cruve
+fitpred = prediction(as.numeric(predition_rf), as.numeric(test_set$admit_or_not))
+fitperf = performance(fitpred,"tpr","fpr")
+plot(fitperf,col="green",lwd=2,main="ROC Curve")
+abline(a=0,b=1,lwd=2,lty=2,col="gray")
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
