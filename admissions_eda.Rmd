@@ -9,7 +9,6 @@ output:
 runtime: shiny
 ---
 
-
 ```{r}
 # Import Libraries
 library(bslib)
@@ -17,17 +16,15 @@ library(flexdashboard)
 library(tidyverse)
 library(shiny)
 library(gt)
+library(DT)
 
 # Read in data
 admit = read.csv("cleaned_admissions_data.csv")
 ```
 
-Overall Statistics
-================================================
+# Distribution of Statistics
 
-Column {.sidebar}
---------------------------------------------------
-
+## Column {.sidebar}
 
 ```{r}
 
@@ -36,17 +33,29 @@ radioButtons(
   "metric", label = "Admission Metric",
   choices = c("GPA" = "gpa",
               "Test Score" = "test_score",
-              "Writing Score" = "writing_score",
-              "Work Experience" = "work_exp",
-              "Volunteer Level" = "volunteer_level"), 
+              "Writing Score" = "writing_score"), 
   selected = "gpa"
 )
 
 ```
 
-Column
---------------------------------------------------
+## Column
 
+```{r}
+
+admitted_tb = admit %>%
+  filter(decision == "Admit") %>%
+  summarise("Med. GPA" = median(gpa),
+            "Med. Test" = median(test_score),
+            "Med. Writing" = median(writing_score),
+            "Males" = sum(gender == "Male"),
+            "Females" = sum(gender == "Female")) %>%
+  pivot_longer(c("Med. GPA","Med. Test","Med. Writing","Males","Females"), names_to = "Statistic", values_to = "Values")
+
+knitr::kable(admitted_tb)
+```
+
+## Column
 
 ```{r}
 # Create label names
@@ -94,36 +103,15 @@ renderPlot({
     panel.background = element_blank())
   },
 # Change dimensions of figure
-height = 700, width = 900)
-```
-
-Column
---------------------------------------------------
-```{r}
-
-
-renderTable({
-  gt(tibble("Max" = round(max(admit[,input$metric][admit$decision == "Admit"]),2),
-            "Mean" = round(mean(admit[,input$metric][admit$decision == "Admit"]),2),
-            "Min" = round(min(admit[,input$metric][admit$decision == "Admit"]),2))%>%
-       pivot_longer(cols = c(Max, Mean, Min),
-                    names_to = "Statistic", 
-                    values_to = "Value")) %>%
-    tab_header(
-    title = paste(names(admit_options[which(admit_options == input$metric)]),
-                  "Statistics"))
-})
-
+height = 600, width = 900)
 
 ```
 
 
-By Admission
-================================================
 
-Column
---------------------------------------------------
+# By Admission
 
+## Column
 
 ```{r}
 # Render plot in shiny
@@ -182,12 +170,9 @@ renderPlot({
 height = 700, width = 1590)
 ```
 
+# Stats by State
 
-Stats by State
-================================================
-
-Column {.sidebar}
---------------------------------------------------
+## Column {.sidebar}
 
 Different Admissions Metrics
 
@@ -195,20 +180,16 @@ Different Admissions Metrics
 
 # Create buttons to select admissions metric
 radioButtons(
-  "metric", label = "Admission Metric",
+  "metric_1", label = "Admission Metric",
   choices = c("GPA" = "gpa",
               "Test Score" = "test_score",
-              "Writing Score" = "writing_score",
-              "Work Experience" = "work_exp",
-              "Volunteer Level" = "volunteer_level"), 
+              "Writing Score" = "writing_score"), 
   selected = "gpa"
 )
 
 ```
 
-Column
---------------------------------------------------
-
+## Column
 
 ```{r}
 # Create label names
@@ -220,7 +201,7 @@ admit_options = c("GPA" = "gpa",
 
 # Render plot in shiny
 renderPlot({
-  ggplot(data = admit, aes_string(x = input$metric)) +
+  ggplot(data = admit, aes_string(x = input$metric_1)) +
     
     # Create histogram
     geom_histogram(fill = "darkblue", alpha = .7, bins = 10) +
@@ -229,10 +210,10 @@ renderPlot({
     facet_wrap(~ state, ncol = 3) +
     
     # Add axis labels and titles
-    labs(title = paste(names(admit_options[which(admit_options == input$metric)]),
+    labs(title = paste(names(admit_options[which(admit_options == input$metric_1)]),
                        "From Each State"),
          y = "Number of Students",
-         x = names(admit_options[which(admit_options == input$metric)])) +
+         x = names(admit_options[which(admit_options == input$metric_1)])) +
     
   # Change theme
   theme(
@@ -261,17 +242,11 @@ renderPlot({
 height = 700, width = 1000)
 ```
 
+# Metric Comparisons
 
+## Column {.sidebar}
 
-
-
-Metric Comparisons
-================================================
-
-Column {.sidebar}
---------------------------------------------------
 View how admissions metrics correlate with one another
-
 
 ```{r}
 
@@ -295,9 +270,7 @@ selectInput(
 
 ```
 
-Column
---------------------------------------------------
-
+## Column
 
 ```{r}
 # For naming 
@@ -370,14 +343,9 @@ renderPlot({
 height = 700, width = 1350)
 ```
 
+# Work & Volunteer
 
-
-Work & Volunteer
-================================================
-
-Column
---------------------------------------------------
-
+## Column
 
 ```{r}
 # Render plot in shiny
@@ -432,8 +400,7 @@ renderPlot({
 height = 700, width = 1350)
 ```
 
-New Admissions Metric
-================================================
+# New Admissions Metric
 
 ```{r}
 admit_normalized = admit
@@ -502,14 +469,9 @@ height = 700, width = 1350)
 
 ```
 
+# New Eligible Students
 
-
-New Eligible Students
-================================================
-
-Column
---------------------------------------------------
-
+## Column
 
 ```{r}
 # Render plot in shiny
@@ -563,3 +525,35 @@ renderPlot({
 # Change figure size
 height = 700, width = 1400)
 ```
+
+# New Admissions Stats
+
+
+## Column
+
+```{r}
+
+admitted_tb = admit %>%
+  filter(decision == "Admit") %>%
+  summarise("Med. GPA" = median(gpa),
+            "Med. Test" = median(test_score),
+            "Med. Writing" = median(writing_score),
+            "Males" = sum(gender == "Male"),
+            "Females" = sum(gender == "Female")) %>%
+  pivot_longer(c("Med. GPA","Med. Test","Med. Writing","Males","Females"), names_to = "Statistic", values_to = "Values")
+
+admitted_tb_new = admit[admit_normalized$total_score >= -1,] %>%
+  summarise("Med. GPA" = median(gpa),
+            "Med. Test" = median(test_score),
+            "Med. Writing" = median(writing_score),
+            "Males" = sum(gender == "Male"),
+            "Females" = sum(gender == "Female")) %>%
+  pivot_longer(c("Med. GPA","Med. Test","Med. Writing","Males","Females"), names_to = "Statistic", values_to = "Values")
+
+admitted_tb = admitted_tb %>%
+  left_join(admitted_tb_new, by = c("Statistic" = "Statistic"))
+colnames(admitted_tb) = c(" ","Current Admissions", "With New Admission Metric")
+
+knitr::kable(admitted_tb)
+```
+
